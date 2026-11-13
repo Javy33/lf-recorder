@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>低频录音测试</title>
+<style>
+:root{--bg:#f4f3ef;--card:#ffffff;--ink:#16181d;--muted:#676b73;--line:#e2e0d8;--accent:#2468c9;--accent-ink:#ffffff;--good:#178a5c;--mid:#a86200;--bad:#c2410c;--chip:#eef2f8;--plot2:#b4b8c1;--stop:#c2410c}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1013;--card:#1a1c21;--ink:#eceef2;--muted:#9aa0a9;--line:#2c2f37;--accent:#5b9bf0;--accent-ink:#0b1320;--good:#4cc38a;--mid:#e5a13a;--bad:#f0825a;--chip:#232833;--plot2:#5a5f6a;--stop:#f0825a}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;padding:16px 16px calc(40px + env(safe-area-inset-bottom))}
+main{max-width:640px;margin:0 auto}
+h1{font-size:24px;line-height:1.25;margin:8px 0 4px;letter-spacing:.01em}
+.sub{color:var(--muted);margin:0 0 16px;font-size:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 14px}
+.card h2{font-size:17px;margin:0 0 10px}
+.row{margin:0 0 12px}
+.row>label,.lab{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;min-height:44px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:10px;font:inherit;font-size:15px;padding:6px 4px}
+.seg button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+select{width:100%;min-height:44px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;font:inherit;padding:6px 10px}
+.go{width:100%;min-height:56px;border:0;border-radius:12px;background:var(--accent);color:var(--accent-ink);font:inherit;font-size:18px;font-weight:700}
+.go.stop{background:var(--stop)}
+.go:disabled{opacity:.5}
+.status{min-height:1.5em;margin:10px 0 0;font-size:14px;color:var(--muted)}
+.status.err{color:var(--bad);font-weight:600}
+.tips{margin:12px 0 0;padding:0 0 0 1.2em;font-size:14px;color:var(--muted)}
+.tips li{margin:2px 0}
+.big{font-size:56px;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums;text-align:center;margin:4px 0 0}
+.bigsub{text-align:center;color:var(--muted);font-size:14px;margin:2px 0 10px}
+canvas{display:block;width:100%;height:210px}
+.verdict{border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:15px;border:1px solid var(--line)}
+.verdict b{display:block;font-size:16px;margin-bottom:2px}
+.verdict.good b{color:var(--good)}.verdict.mid b{color:var(--mid)}.verdict.bad b{color:var(--bad)}
+.info{font-size:13px;color:var(--muted);margin:0 0 12px;overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums;margin:0 0 6px}
+th,td{text-align:right;padding:5px 4px;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:500;color:var(--muted);font-size:12px}
+td.good{color:var(--good);font-weight:600}td.mid{color:var(--mid);font-weight:600}td.bad{color:var(--bad);font-weight:600}
+.foot{font-size:12px;color:var(--muted);margin:0 0 12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.chip{background:var(--chip);border-radius:8px;padding:3px 8px;font-size:13px;font-variant-numeric:tabular-nums}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+.btn{flex:1 1 30%;min-height:44px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--ink);font:inherit;font-size:15px;text-decoration:none;padding:6px 8px;text-align:center}
+.btn.pri{border-color:var(--accent);color:var(--accent);font-weight:600}
+textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--ink);font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;padding:8px;resize:vertical}
+.takes{display:flex;flex-direction:column;gap:6px}
+.take{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--ink);font:inherit;font-size:14px;padding:8px 10px;font-variant-numeric:tabular-nums}
+.take[aria-current="true"]{border-color:var(--accent)}
+.take small{display:block;color:var(--muted);font-size:12px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <h1>低频录音测试</h1>
+  <p class="sub">看这台手机的浏览器能不能录到 50 Hz 以下的声音，并和语音备忘录比一比。</p>
+
+  <section class="card" id="setup">
+    <div class="row"><span class="lab">这台手机</span>
+      <div class="seg" data-k="dev"><button type="button" data-v="iPhone">iPhone</button><button type="button" data-v="三星">三星</button><button type="button" data-v="其他">其他</button></div></div>
+    <div class="row"><span class="lab">音频处理（回声消除、降噪、自动增益）</span>
+      <div class="seg" data-k="mode"><button type="button" data-v="raw">全部关闭</button><button type="button" data-v="def">系统默认</button></div></div>
+    <div class="row"><span class="lab">录音时长</span>
+      <div class="seg" data-k="dur"><button type="button" data-v="30">30 秒</button><button type="button" data-v="60">60 秒</button><button type="button" data-v="120">2 分钟</button></div></div>
+    <div class="row" id="micRow" hidden><label for="mic" id="micNote">麦克风</label><select id="mic"></select></div>
+    <button type="button" class="go" id="go">开始录音</button>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+    <ul class="tips">
+      <li>点“开始”后有 3 秒倒计时，把手机平放在枕头位置，手拿开。</li>
+      <li>别放在出风口的气流里，录的时候别说话、别碰手机。</li>
+      <li>屏幕要一直亮着，切到别的 App 录音会中断。</li>
+    </ul>
+  </section>
+
+  <section class="card" id="live" hidden>
+    <div class="big" id="big">3</div>
+    <div class="bigsub" id="bigSub"></div>
+    <canvas id="cvLive" aria-label="实时低频频谱"></canvas>
+  </section>
+
+  <section class="card" id="result" hidden>
+    <h2 id="resTitle"></h2>
+    <p class="info" id="resInfo"></p>
+    <div class="verdict" id="verdict"></div>
+    <span class="lab">50 Hz 以下录到多少（相对 63–100 Hz 的背景声，0 dB 表示没有被削弱）</span>
+    <table><thead><tr><th>频率</th><th>这次</th><th>语音备忘录</th><th>多录到</th></tr></thead><tbody id="rollBody"></tbody></table>
+    <p class="foot">比较的前提：房间里的噪声和上次用语音备忘录录音时差不多（空调开着）。</p>
+    <span class="lab" id="plotLab">这次的低频频谱（5–500 Hz）</span>
+    <canvas id="cvRes" aria-label="录音的低频频谱"></canvas>
+    <span class="lab" style="margin-top:12px">最明显的单频</span>
+    <div class="chips" id="peaks"></div>
+    <div class="btns">
+      <button type="button" class="btn pri" id="btnCopy">复制全部结果</button>
+      <a class="btn" id="btnSave" download>保存 WAV</a>
+      <button type="button" class="btn" id="btnShare" hidden>分享 WAV</button>
+    </div>
+    <textarea id="txt" rows="9" readonly aria-label="全部结果的文字版"></textarea>
+  </section>
+
+  <section class="card" id="hist" hidden>
+    <h2>本次打开页面后的各次录音</h2>
+    <div class="takes" id="takes"></div>
+  </section>
+</main>
+
+<script id="dsp">
+/* 纯计算部分：不碰页面，Node 里也能直接跑（测试用）。 */
+const LF = (() => {
+  'use strict';
+
+  function fftInPlace(re, im) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const half = len >> 1, ang = -2 * Math.PI / len;
+      for (let k = 0; k < half; k++) {
+        const cr = Math.cos(ang * k), ci = Math.sin(ang * k);
+        for (let a = k; a < n; a += len) {
+          const b = a + half;
+          const xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
+          re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+        }
+      }
+    }
+  }
+
+  /* 加 Blackman 窗的低通；fc 是截止频率 ÷ 采样率 */
+  function lowpassTaps(numTaps, fc) {
+    const h = new Float64Array(numTaps), mid = (numTaps - 1) / 2;
+    let s = 0;
+    for (let n = 0; n < numTaps; n++) {
+      const x = n - mid;
+      const sinc = x === 0 ? 2 * fc : Math.sin(2 * Math.PI * fc * x) / (Math.PI * x);
+      const w = 0.42 - 0.5 * Math.cos(2 * Math.PI * n / (numTaps - 1)) + 0.08 * Math.cos(4 * Math.PI * n / (numTaps - 1));
+      h[n] = sinc * w; s += h[n];
+    }
+    for (let n = 0; n < numTaps; n++) h[n] /= s;
+    return h;
+  }
+
+  /* 降到约 2 kHz（保留 0–500 Hz，1.5 kHz 以上压掉 70 dB 以上，不会折叠进来） */
+  function decimate(x, fs, target) {
+    const M = Math.max(1, Math.round(fs / (target || 2000)));
+    if (M === 1) return { y: Float64Array.from(x), fs };
+    const taps = 16 * M + 1, h = lowpassTaps(taps, 0.45 / M);
+    const nOut = Math.max(0, Math.floor((x.length - taps) / M) + 1);
+    const y = new Float64Array(nOut);
+    for (let i = 0; i < nOut; i++) {
+      let acc = 0; const o = i * M;
+      for (let k = 0; k < taps; k++) acc += h[k] * x[o + k];
+      y[i] = acc;
+    }
+    return { y, fs: fs / M };
+  }
+
+  /* Welch 平均功率谱（Hann 窗，75% 重叠，每段去均值）；一个正弦的读数 = 它的有效值平方 */
+  function welch(y, fs, N) {
+    N = N || 8192;
+    while (N > y.length && N > 256) N >>= 1;
+    if (y.length < N) return null;
+    const hop = N >> 2, half = N >> 1;
+    const w = new Float64Array(N); let sw = 0;
+    for (let i = 0; i < N; i++) { w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N); sw += w[i]; }
+    const P = new Float64Array(half + 1), re = new Float64Array(N), im = new Float64Array(N);
+    let segs = 0;
+    for (let o = 0; o + N <= y.length; o += hop) {
+      let m = 0; for (let i = 0; i < N; i++) m += y[o + i]; m /= N;
+      for (let i = 0; i < N; i++) { re[i] = (y[o + i] - m) * w[i]; im[i] = 0; }
+      fftInPlace(re, im);
+      for (let k = 0; k <= half; k++) P[k] += re[k] * re[k] + im[k] * im[k];
+      segs++;
+    }
+    const sc = 2 / (sw * sw * segs);
+    for (let k = 0; k <= half; k++) P[k] *= sc;
+    return { P, df: fs / N, segs };
+  }
+
+  function spectrum(y, fs, N, fmax) {
+    const W = welch(y, fs, N); if (!W) return null;
+    const nb = Math.min(W.P.length, Math.floor((fmax || 500) / W.df) + 1);
+    const f = new Float64Array(nb), db = new Float64Array(nb);
+    for (let k = 0; k < nb; k++) { f[k] = k * W.df; db[k] = 10 * Math.log10(Math.max(W.P[k], 1e-30)); }
+    return { f, db, df: W.df, segs: W.segs };
+  }
+
+  function medianOf(arr) { const s = Array.from(arr).sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : 0.5 * (s[m - 1] + s[m]); }
+
+  function medfilt(a, k) {
+    const h = k >> 1, out = new Float64Array(a.length);
+    for (let i = 0; i < a.length; i++) out[i] = medianOf(a.subarray(Math.max(0, i - h), Math.min(a.length, i + h + 1)));
+    return out;
+  }
+
+  const ROLL_F = [10, 12.5, 16, 20, 25, 31.5, 40, 50];
+
+  /* y: 已降采样的信号。返回频谱、背景谱、低频滚降、单频峰 */
+  function analyze(y, fs) {
+    const S = spectrum(y, fs, 8192, 500); if (!S) return null;
+    const { f, db, df } = S;
+    const bg = medfilt(db, Math.round(8 / df) | 1);            // ±4 Hz 中值 = 去掉单频后的背景
+    const lvl = fc => medianOf(bg.subarray(Math.ceil(fc / 1.06 / df), Math.floor(fc * 1.06 / df) + 1));
+    const ref = medianOf([lvl(63), lvl(80), lvl(100)]);
+    const rolloff = ROLL_F.map(fc => ({ fc, d: lvl(fc) - ref }));
+    const cand = [];
+    for (let k = Math.max(2, Math.ceil(10 / df)); k < Math.min(f.length - 1, Math.floor(400 / df)); k++) {
+      if (db[k] - bg[k] >= 10 && db[k] > db[k - 1] && db[k] >= db[k + 1]) cand.push(k);
+    }
+    cand.sort((p, q) => db[q] - db[p]);
+    const picked = [];
+    for (const k of cand) {
+      if (picked.some(p => Math.abs(p - k) * df < 1)) continue;
+      picked.push(k); if (picked.length >= 12) break;
+    }
+    const peaks = picked.map(k => {
+      const a = db[k - 1], b = db[k], c = db[k + 1], den = a - 2 * b + c, d = den ? 0.5 * (a - c) / den : 0;
+      return { f: f[k] + d * df, db: b - 0.25 * (a - c) * d, prom: db[k] - bg[k] };
+    }).sort((p, q) => p.f - q.f);
+    return { f, db, bg, df, segs: S.segs, ref, rolloff, peaks };
+  }
+
+  function levelStats(x) {
+    let s = 0, p = 0;
+    for (let i = 0; i < x.length; i++) { const v = x[i]; s += v * v; const a = v < 0 ? -v : v; if (a > p) p = a; }
+    return { rms: 10 * Math.log10(s / Math.max(1, x.length) + 1e-20), peak: 20 * Math.log10(p + 1e-10) };
+  }
+
+  /* 两个声道其实是同一路信号？（单麦被复制成双声道） */
+  function sameSignal(a, b) {
+    const n = Math.min(a.length, b.length, 480000); let e = 0, d = 0;
+    for (let i = 0; i < n; i++) { e += a[i] * a[i]; const t = a[i] - b[i]; d += t * t; }
+    return d <= e * 1e-8;
+  }
+
+  /* 24 位 PCM WAV */
+  function encodeWav24(chs, fs) {
+    const nch = chs.length, n = chs[0].length, bytes = n * nch * 3;
+    const buf = new ArrayBuffer(44 + bytes), v = new DataView(buf), u8 = new Uint8Array(buf);
+    const str = (o, s) => { for (let i = 0; i < s.length; i++) u8[o + i] = s.charCodeAt(i); };
+    str(0, 'RIFF'); v.setUint32(4, 36 + bytes, true); str(8, 'WAVE'); str(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, nch, true);
+    v.setUint32(24, Math.round(fs), true); v.setUint32(28, Math.round(fs) * nch * 3, true);
+    v.setUint16(32, nch * 3, true); v.setUint16(34, 24, true); str(36, 'data'); v.setUint32(40, bytes, true);
+    let o = 44;
+    for (let i = 0; i < n; i++) for (let c = 0; c < nch; c++) {
+      let s = Math.round(chs[c][i] * 8388607);
+      if (s > 8388607) s = 8388607; else if (s < -8388608) s = -8388608;
+      u8[o++] = s & 255; u8[o++] = (s >> 8) & 255; u8[o++] = (s >> 16) & 255;
+    }
+    return buf;
+  }
+
+  return { fftInPlace, lowpassTaps, decimate, welch, spectrum, medfilt, analyze, levelStats, sameSignal, encodeWav24, ROLL_F };
+})();
+</script>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+
+/* 语音备忘录三段录音（2026-11-14）用同一套算法算出的滚降，作对照 */
+const VM_REF = { 10: -31, 12.5: -30, 16: -29, 20: -26, 25: -21, 31.5: -15, 40: -7, 50: -2 };
+const MODE_NAME = { raw: '关闭处理', def: '系统默认' };
+const DEMO = /[?&]demo\b/.test(location.search), FORCE_SP = /[?&]sp\b/.test(location.search);
+const COUNT = 3;
+const ua = navigator.userAgent;
+const opt = { dev: /iPhone|iPad/.test(ua) ? 'iPhone' : /Android/.test(ua) ? '三星' : '其他', mode: 'raw', dur: 30 };
+
+const WORKLET = `class LfCap extends AudioWorkletProcessor{
+constructor(){super();this.N=4096;this.a=new Float32Array(this.N);this.b=new Float32Array(this.N);this.n=0;this.st=false;this.on=true;this.port.onmessage=e=>{if(e.data==='stop')this.on=false;};}
+process(inputs){const inp=inputs[0];if(!inp||!inp.length||!inp[0])return this.on;const c0=inp[0],c1=inp.length>1?inp[1]:null,L=c0.length;if(c1)this.st=true;
+for(let i=0;i<L;i++){this.a[this.n]=c0[i];this.b[this.n]=c1?c1[i]:c0[i];if(++this.n===this.N){const a=this.a.slice(),b=this.st?this.b.slice():null;this.port.postMessage({a,b},b?[a.buffer,b.buffer]:[a.buffer]);this.n=0;}}
+return this.on;}}
+registerProcessor('lf-cap',LfCap);`;
+
+let ctx = null, stream = null, src = null, node = null, nodeKind = '', mute = null, wake = null;
+let phase = 'idle';            // idle | init | count | rec | ana
+let cap = false, A = [], B = [], sawStereo = false, nSamp = 0, liveRms = -200;
+let tStart = 0, tickId = 0, lastLive = 0, curInfo = null, deviceId = '', devLabels = [];
+const takes = []; let shown = -1, saveUrl = '';
+
+const m = v => { const r = Math.round(v); return (r < 0 ? '−' : r > 0 ? '+' : '') + Math.abs(r); };
+const neg = v => { const r = Math.round(v); return (r < 0 ? '−' : '') + Math.abs(r); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function say(t, err) { const el = $('status'); el.textContent = t || ''; el.classList.toggle('err', !!err); }
+window.addEventListener('error', e => say('页面出错：' + (e.message || e.error), true));
+window.addEventListener('unhandledrejection', e => say('页面出错：' + ((e.reason && e.reason.message) || e.reason), true));
+
+/* ---------- 选项 ---------- */
+document.querySelectorAll('.seg').forEach(seg => {
+  const k = seg.dataset.k;
+  const sync = () => seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(String(opt[k]) === b.dataset.v)));
+  seg.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || phase !== 'idle') return;
+    opt[k] = k === 'dur' ? +b.dataset.v : b.dataset.v; sync();
+  });
+  sync();
+});
+$('mic').addEventListener('change', e => { deviceId = e.target.value; });
+
+function ui() {
+  const go = $('go'), busy = phase === 'count' || phase === 'rec';
+  go.textContent = busy ? '停止' : phase === 'init' ? '正在打开麦克风…' : phase === 'ana' ? '正在分析…' : (takes.length ? '再录一次' : '开始录音');
+  go.classList.toggle('stop', busy);
+  go.disabled = phase === 'init' || phase === 'ana';
+  $('live').hidden = !(busy || phase === 'ana');
+  $('result').hidden = shown < 0 || busy || phase === 'ana';
+  $('hist').hidden = takes.length < 2 || busy || phase === 'ana';
+}
+
+/* ---------- 录音 ---------- */
+function newCtx() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  try { return new AC({ latencyHint: 'playback' }); } catch (e) { return new AC(); }
+}
+
+async function getStream() {
+  const raw = opt.mode === 'raw';
+  const audio = { echoCancellation: !raw, noiseSuppression: !raw, autoGainControl: !raw, channelCount: { ideal: 2 } };
+  if (deviceId) {
+    try { return await navigator.mediaDevices.getUserMedia({ audio: Object.assign({ deviceId: { exact: deviceId } }, audio) }); }
+    catch (e) { if (e.name !== 'OverconstrainedError' && e.name !== 'NotFoundError') throw e; deviceId = ''; $('mic').value = ''; }
+  }
+  return navigator.mediaDevices.getUserMedia({ audio });
+}
+
+async function listDevices() {
+  try {
+    const ds = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications');
+    devLabels = ds.map(d => d.label || '（没有名字）');
+    const sel = $('mic'); sel.innerHTML = '';
+    sel.append(new Option('浏览器默认', ''));
+    ds.forEach(d => { if (d.deviceId) sel.append(new Option(d.label || '麦克风', d.deviceId)); });
+    sel.value = deviceId; if (sel.value !== deviceId) { deviceId = ''; sel.value = ''; }
+    $('micNote').textContent = `麦克风（浏览器给出了 ${ds.length} 个入口，下次录音生效）`;
+    $('micRow').hidden = false;
+  } catch (e) { /* 列不出来不影响录音 */ }
+}
+
+async function makeNode() {
+  if (ctx.audioWorklet && !FORCE_SP) {
+    try {
+      const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
+      await ctx.audioWorklet.addModule(url); URL.revokeObjectURL(url);
+      const n = new AudioWorkletNode(ctx, 'lf-cap', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+      n.port.onmessage = e => onChunk(e.data);
+      nodeKind = 'worklet'; return n;
+    } catch (e) { /* 退回旧接口 */ }
+  }
+  const n = ctx.createScriptProcessor(4096, 2, 1);
+  n.onaudioprocess = e => {
+    const ib = e.inputBuffer, a = new Float32Array(ib.getChannelData(0));
+    onChunk({ a, b: ib.numberOfChannels > 1 ? new Float32Array(ib.getChannelData(1)) : null });
+  };
+  nodeKind = 'script'; return n;
+}
+
+function demoSource() {       // 电脑上不接麦克风时的假信号：带 55 Hz 低切的噪声 + 几个单频
+  const fs = ctx.sampleRate, n = Math.round(fs * 8), buf = ctx.createBuffer(1, n, fs), d = buf.getChannelData(0);
+  let seed = 12345; const rnd = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 - 0.5; };
+  const al = 1 / (1 + 2 * Math.PI * 55 / fs), x1 = [0, 0, 0], y1 = [0, 0, 0];
+  const tones = [[32, -83], [45, -66], [83.25, -63], [166.5, -68]];
+  const noise = new Float32Array(n); for (let i = 0; i < n; i++) noise[i] = rnd() * 0.02;
+  for (let pass = 0; pass < 2; pass++) for (let i = 0; i < n; i++) {   // 滤两遍、留第二遍：首尾衔接，循环播放时没有接缝
+    let v = noise[i];
+    for (let s = 0; s < 3; s++) { const y = al * (y1[s] + v - x1[s]); x1[s] = v; y1[s] = y; v = y; }
+    for (const [f, dbv] of tones) v += Math.SQRT2 * Math.pow(10, dbv / 20) * Math.sin(2 * Math.PI * f * i / fs);
+    d[i] = v;
+  }
+  const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; return s;
+}
+
+function onChunk(d) {
+  const a = d.a; let s = 0;
+  for (let i = 0; i < a.length; i += 4) s += a[i] * a[i];
+  liveRms = 10 * Math.log10(s / (a.length / 4) + 1e-20);
+  if (!cap) return;
+  A.push(a); B.push(d.b || a); if (d.b) sawStereo = true; nSamp += a.length;
+}
+
+async function start() {
+  if (!DEMO && (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)) {
+    say('这个页面要用 https 地址打开，浏览器才允许用麦克风。', true); return;
+  }
+  phase = 'init'; ui(); say('');
+  try {
+    let info;
+    if (DEMO) {
+      ctx = newCtx(); src = demoSource();
+      info = { label: '演示信号（不是麦克风）', set: {} };
+    } else {
+      stream = await getStream();
+      ctx = newCtx();
+      const tr = stream.getAudioTracks()[0];
+      info = { label: tr.label || '麦克风', set: tr.getSettings ? tr.getSettings() : {} };
+      tr.addEventListener('ended', () => { if (phase === 'rec') finish(true, '麦克风被系统收回了，录音提前结束。'); });
+      src = ctx.createMediaStreamSource(stream);
+      listDevices();
+    }
+    ctx.resume().catch(() => {});
+    node = await makeNode(); info.kind = nodeKind;
+    mute = ctx.createGain(); mute.gain.value = 0;
+    src.connect(node); node.connect(mute); mute.connect(ctx.destination);
+    if (DEMO) src.start();
+    curInfo = info;
+    try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch (e) { wake = null; }
+    cap = false; A = []; B = []; nSamp = 0; sawStereo = false; liveRms = -200; lastLive = 0;
+    phase = 'count'; tStart = performance.now();
+    $('big').textContent = COUNT; $('bigSub').textContent = '把手机放好，手拿开';
+    const g = $('cvLive').getContext('2d'); g.clearRect(0, 0, $('cvLive').width, $('cvLive').height);
+    tickId = setInterval(tick, 100); ui();
+  } catch (e) {
+    teardown(); phase = 'idle'; ui();
+    const n = e && e.name;
+    say(n === 'NotAllowedError' || n === 'SecurityError' ? '没有拿到麦克风权限。请在浏览器的网站设置里允许这个页面使用麦克风，再点一次。'
+      : n === 'NotFoundError' ? '浏览器说找不到麦克风。'
+      : n === 'NotReadableError' ? '麦克风正被别的 App 占用，关掉它再试。'
+      : '打不开麦克风：' + ((e && e.message) || e), true);
+  }
+}
+
+function teardown() {
+  clearInterval(tickId); cap = false;
+  try { if (node && node.port) node.port.postMessage('stop'); } catch (e) {}
+  try { if (node) { node.onaudioprocess = null; node.disconnect(); } } catch (e) {}
+  try { if (src) { if (src.stop) src.stop(); src.disconnect(); } } catch (e) {}
+  try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  try { if (ctx) ctx.close(); } catch (e) {}
+  try { if (wake) wake.release(); } catch (e) {}
+  node = src = stream = mute = wake = null;
+}
+
+function tick() {
+  const now = performance.now(), el = (now - tStart) / 1000, fs = ctx.sampleRate;
+  if (phase === 'count') {
+    if (ctx.state !== 'running') { ctx.resume().catch(() => {}); tStart = now; $('bigSub').textContent = '点一下屏幕任意位置继续'; return; }
+    const left = COUNT - el;
+    if (left > 0) { $('big').textContent = Math.ceil(left); $('bigSub').textContent = '把手机放好，手拿开'; return; }
+    phase = 'rec'; cap = true; tStart = now; A = []; B = []; nSamp = 0; sawStereo = false;
+  }
+  if (phase !== 'rec') return;
+  const got = nSamp / fs, left = Math.max(0, opt.dur - got);
+  $('big').textContent = Math.floor(left / 60) + ':' + String(Math.ceil(left) % 60).padStart(2, '0');
+  $('bigSub').textContent = `正在录音 · 音量 ${neg(liveRms)} dBFS` + (document.hidden ? ' · 页面在后台，录音可能中断' : '');
+  if (now - lastLive > 800 && got > 2.4) { lastLive = now; drawLive(fs); }
+  if (got >= opt.dur) finish(false);
+  else if (el > opt.dur + 6) finish(false, nSamp ? '录音中途断过，实际只录到 ' + got.toFixed(0) + ' 秒。' : '');
+}
+
+function tail(chunks, k) {
+  const out = new Float32Array(k); let o = k;
+  for (let i = chunks.length - 1; i >= 0 && o > 0; i--) {
+    const c = chunks[i], take = Math.min(o, c.length);
+    out.set(c.subarray(c.length - take), o - take); o -= take;
+  }
+  return o > 0 ? out.subarray(o) : out;
+}
+
+function drawLive(fs) {
+  const x = tail(A, Math.round(fs * 4.3)), d = LF.decimate(x, fs), S = LF.spectrum(d.y, d.fs, 2048, 500);
+  if (S) plot($('cvLive'), [{ f: S.f, db: S.db, color: '--accent', w: 1.5 }]);
+}
+
+function concat(chunks, n) { const out = new Float32Array(n); let o = 0; for (const c of chunks) { out.set(c, o); o += c.length; } return out; }
+
+function finish(manual, note) {
+  if (phase === 'count' || phase === 'init') { teardown(); phase = 'idle'; ui(); say('已取消。'); return; }
+  if (phase !== 'rec') return;
+  const fs = ctx.sampleRate, info = curInfo;
+  phase = 'ana'; teardown();
+  $('big').textContent = '…'; $('bigSub').textContent = '正在分析'; ui();
+  setTimeout(() => {
+    try { buildTake(fs, info, manual); say(note || '录好了。可以换一种“音频处理”或换另一台手机再录一次。'); }
+    catch (e) { say((e && e.message) || String(e), true); }
+    A = []; B = []; phase = 'idle'; ui();
+    if (shown >= 0) show(shown);
+  }, 60);
+}
+
+function buildTake(fs, info, manual) {
+  if (!nSamp) throw new Error('浏览器没有送来任何声音数据。');
+  if (nSamp < fs * 8) throw new Error('录音太短（不到 8 秒），没法分析低频。');
+  const L = concat(A, nSamp); let R = sawStereo ? concat(B, nSamp) : null;
+  if (R && LF.sameSignal(L, R)) R = null;
+  const i0 = Math.round(fs * 0.3), i1 = nSamp - (manual ? Math.round(fs * 0.7) : 0);
+  const mix = new Float32Array(i1 - i0);
+  if (R) for (let i = 0; i < mix.length; i++) mix[i] = 0.5 * (L[i0 + i] + R[i0 + i]); else mix.set(L.subarray(i0, i1));
+  const st = LF.levelStats(mix), d = LF.decimate(mix, fs), res = LF.analyze(d.y, d.fs);
+  if (!res) throw new Error('录音太短，没法分析低频。');
+  const now = new Date(), hhmm = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+  const devTag = { 'iPhone': 'iphone', '三星': 'samsung', '其他': 'other' }[opt.dev];
+  const t = {
+    n: takes.length + 1, dev: opt.dev, mode: opt.mode, time: hhmm.slice(0, 2) + ':' + hhmm.slice(2), fs, nch: R ? 2 : 1,
+    dur: nSamp / fs, label: info.label, set: info.set, kind: info.kind, rms: st.rms, peak: st.peak, res, mics: devLabels.slice(),
+    wav: new Blob([LF.encodeWav24(R ? [L, R] : [L], fs)], { type: 'audio/wav' }),
+    name: `lf_${devTag}_${opt.mode}_${hhmm}_${takes.length + 1}.wav`,
+  };
+  const g = [20, 25, 31.5].map(fc => t.res.rolloff.find(r => r.fc === fc).d - VM_REF[fc]);
+  t.gain = (g[0] + g[1] + g[2]) / 3;
+  takes.push(t);
+  for (let i = 0; i < takes.length - 3; i++) takes[i].wav = null;      // 只留最近 3 次的 WAV，省内存
+  shown = takes.length - 1;
+}
+
+/* ---------- 结果 ---------- */
+const onoff = v => v === true ? '开' : v === false ? '关' : '未知';
+function setLine(t) {
+  const s = t.set || {};
+  return `回声消除 ${onoff(s.echoCancellation)} / 降噪 ${onoff(s.noiseSuppression)} / 自动增益 ${onoff(s.autoGainControl)}`;
+}
+
+function takeText(t) {
+  const r = t.res;
+  return [
+    `#${t.n} ${t.dev}｜${MODE_NAME[t.mode]}｜${t.dur.toFixed(0)} 秒｜${t.time}`,
+    `输入: ${t.label}｜${t.fs} Hz｜${t.nch} 声道｜实际生效: ${setLine(t)}｜${t.kind}`,
+    `电平: 整体 ${t.rms.toFixed(1)} dBFS，峰值 ${t.peak.toFixed(1)} dBFS`,
+    '滚降(相对63–100Hz): ' + r.rolloff.map(x => `${x.fc}Hz ${x.d.toFixed(0)}`).join(' | '),
+    '单频: ' + (r.peaks.length ? r.peaks.map(p => `${p.f.toFixed(1)}Hz ${p.db.toFixed(0)}(+${p.prom.toFixed(0)})`).join(', ') : '无'),
+    `麦克风入口: ${t.mics.length ? t.mics.join(' / ') : '未列出'}`,
+  ].join('\n');
+}
+function allText() {
+  return '【低频录音测试】\n' + takes.map(takeText).join('\n\n') + '\n\n语音备忘录对照: ' + LF.ROLL_F.map(fc => `${fc}Hz ${VM_REF[fc]}`).join(' | ') + '\nUA: ' + ua;
+}
+
+function show(i) {
+  shown = i; const t = takes[i], r = t.res;
+  $('resTitle').textContent = `第 ${t.n} 次 · ${t.dev} · ${MODE_NAME[t.mode]}`;
+  $('resInfo').textContent = `输入：${t.label} · ${t.fs} Hz · ${t.nch === 2 ? '双声道（两路不同）' : '单声道'} · 实际生效：${setLine(t)} · 整体音量 ${neg(t.rms)} dBFS`;
+  const v = $('verdict'), gtxt = Math.abs(t.gain).toFixed(0);
+  let cls, head, body;
+  if (t.gain >= 10) { cls = 'good'; head = '低频比语音备忘录完整得多'; body = `20–31.5 Hz 平均多录到 ${gtxt} dB。这种方式适合录低频。`; }
+  else if (t.gain >= 4) { cls = 'mid'; head = '比语音备忘录好一些'; body = `20–31.5 Hz 平均多录到 ${gtxt} dB，但 50 Hz 以下仍有削弱。`; }
+  else { cls = 'bad'; head = '和语音备忘录差不多'; body = `20–31.5 Hz 只差 ${m(t.gain)} dB，50 Hz 以下一样被削掉了。`; }
+  if (t.peak > -1) body += ' 注意：这次录音有过载（削顶），结果不准。';
+  if (t.rms < -80) body += ' 注意：录到的声音非常小，可能没有真正收到麦克风信号。';
+  v.className = 'verdict ' + cls; v.innerHTML = `<b>${head}</b>${esc(body)}`;
+  $('rollBody').innerHTML = r.rolloff.map(x => {
+    const g = x.d - VM_REF[x.fc], c = g >= 10 ? 'good' : g >= 4 ? 'mid' : g <= -4 ? 'bad' : '';
+    return `<tr><td>${x.fc} Hz</td><td>${m(x.d)} dB</td><td>${m(VM_REF[x.fc])} dB</td><td class="${c}">${m(g)} dB</td></tr>`;
+  }).join('');
+  const prev = i > 0 ? takes[i - 1] : null, series = [];
+  if (prev) series.push({ f: prev.res.f, db: prev.res.db, color: '--plot2', w: 1 });
+  series.push({ f: r.f, db: r.db, color: '--accent', w: 1.4 });
+  $('plotLab').textContent = '这次的低频频谱（5–500 Hz）' + (prev ? `，灰线是第 ${prev.n} 次` : '');
+  plot($('cvRes'), series);
+  $('peaks').innerHTML = r.peaks.length
+    ? r.peaks.map(p => `<span class="chip">${p.f.toFixed(1)} Hz · ${neg(p.db)} dB</span>`).join('')
+    : '<span class="chip">没有明显高出背景的单频</span>';
+  if (saveUrl) URL.revokeObjectURL(saveUrl); saveUrl = '';
+  const a = $('btnSave'), sh = $('btnShare');
+  if (t.wav) {
+    saveUrl = URL.createObjectURL(t.wav); a.href = saveUrl; a.download = t.name; a.hidden = false;
+    a.textContent = `保存 WAV（${(t.wav.size / 1048576).toFixed(1)} MB）`;
+    let can = false;
+    try { can = !!(navigator.canShare && navigator.canShare({ files: [new File([t.wav], t.name, { type: 'audio/wav' })] })); } catch (e) {}
+    sh.hidden = !can;
+  } else { a.hidden = true; sh.hidden = true; }
+  $('txt').value = allText();
+  $('takes').innerHTML = takes.map((k, j) => {
+    const d = fc => m(k.res.rolloff.find(x => x.fc === fc).d);
+    return `<button type="button" class="take" data-i="${j}" aria-current="${j === i}">#${k.n} ${esc(k.dev)} · ${MODE_NAME[k.mode]} · ${k.time}<small>31.5 Hz ${d(31.5)} dB · 20 Hz ${d(20)} dB · 比语音备忘录 ${m(k.gain)} dB</small></button>`;
+  }).join('');
+  ui();
+}
+
+$('takes').addEventListener('click', e => { const b = e.target.closest('.take'); if (b) show(+b.dataset.i); });
+$('btnCopy').addEventListener('click', async () => {
+  const text = allText(), b = $('btnCopy');
+  try { await navigator.clipboard.writeText(text); b.textContent = '已复制'; }
+  catch (e) { const ta = $('txt'); ta.focus(); ta.select(); b.textContent = '请长按下面的文字复制'; }
+  setTimeout(() => { b.textContent = '复制全部结果'; }, 2500);
+});
+$('btnShare').addEventListener('click', async () => {
+  const t = takes[shown]; if (!t || !t.wav) return;
+  try { await navigator.share({ files: [new File([t.wav], t.name, { type: 'audio/wav' })], title: t.name }); } catch (e) { /* 用户取消 */ }
+});
+$('go').addEventListener('click', () => { if (phase === 'idle') start(); else if (phase === 'count' || phase === 'rec') finish(true); });
+document.addEventListener('click', () => { if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {}); });
+window.addEventListener('resize', () => { if (shown >= 0 && phase === 'idle') show(shown); });
+
+/* ---------- 画图 ---------- */
+function plot(cv, series) {
+  const W = cv.clientWidth, H = cv.clientHeight; if (!W || !H) return;
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const cs = getComputedStyle(document.documentElement), col = n => cs.getPropertyValue(n).trim();
+  const x0 = 36, x1 = W - 6, y0 = 8, y1 = H - 22, FMIN = 5, FMAX = 500;
+  const lx = f => x0 + Math.log(f / FMIN) / Math.log(FMAX / FMIN) * (x1 - x0);
+  let mx = -300;
+  for (const s of series) for (let k = 0; k < s.f.length; k++) if (s.f[k] >= FMIN && s.db[k] > mx) mx = s.db[k];
+  const top = Math.ceil((mx + 2) / 10) * 10, bot = top - 70;
+  const ly = d => y0 + (top - Math.min(top, Math.max(bot, d))) / (top - bot) * (y1 - y0);
+  g.font = '11px -apple-system,BlinkMacSystemFont,sans-serif'; g.lineWidth = 1;
+  g.strokeStyle = col('--line'); g.fillStyle = col('--muted');
+  g.textAlign = 'right'; g.textBaseline = 'middle';
+  for (let d = top; d >= bot; d -= 10) { const y = Math.round(ly(d)) + 0.5; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); if ((top - d) % 20 === 0) g.fillText(d, x0 - 5, y); }
+  g.textAlign = 'center'; g.textBaseline = 'top';
+  for (const f of [5, 10, 20, 31.5, 50, 100, 200, 500]) { const x = Math.round(lx(f)) + 0.5; g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y1); g.stroke(); g.fillText(f, Math.min(x, x1 - 10), y1 + 5); }
+  g.save(); g.beginPath(); g.rect(x0, y0, x1 - x0, y1 - y0); g.clip(); g.lineJoin = 'round';
+  for (const s of series) {
+    g.strokeStyle = col(s.color); g.lineWidth = s.w || 1.2; g.beginPath(); let on = false;
+    for (let k = 0; k < s.f.length; k++) { if (s.f[k] < FMIN) continue; const x = lx(s.f[k]), y = ly(s.db[k]); if (on) g.lineTo(x, y); else { g.moveTo(x, y); on = true; } }
+    g.stroke();
+  }
+  g.restore();
+}
+
+if (DEMO) say('演示模式：用的是合成信号，不是麦克风。');
+ui();
+})();
+</script>
+</body>
+</html>
