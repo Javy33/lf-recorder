@@ -4,13 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" id="themeColor" content="#f4f3ef">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="低频录音">
 <title>低频录音测试</title>
 <style>
 :root{--bg:#f4f3ef;--card:#ffffff;--ink:#16181d;--muted:#676b73;--line:#e2e0d8;--accent:#2468c9;--accent-ink:#ffffff;--good:#178a5c;--mid:#a86200;--bad:#c2410c;--chip:#eef2f8;--plot2:#b4b8c1;--stop:#c2410c}
 @media (prefers-color-scheme:dark){:root{--bg:#0f1013;--card:#1a1c21;--ink:#eceef2;--muted:#9aa0a9;--line:#2c2f37;--accent:#5b9bf0;--accent-ink:#0b1320;--good:#4cc38a;--mid:#e5a13a;--bad:#f0825a;--chip:#232833;--plot2:#5a5f6a;--stop:#f0825a}}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;padding:16px 16px calc(40px + env(safe-area-inset-bottom))}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;padding:calc(16px + env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom))}
+html.nighton,html.nighton body{background:#000}
 main{max-width:640px;margin:0 auto}
 h1{font-size:24px;line-height:1.25;margin:8px 0 4px;letter-spacing:.01em}
 .sub{color:var(--muted);margin:0 0 16px;font-size:15px}
@@ -58,9 +64,9 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:t
 .take small{display:block;color:var(--muted);font-size:12px}
 .loud{font-size:14px;margin:0 0 8px;font-variant-numeric:tabular-nums}
 .loud small{display:block;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
-#night{position:fixed;inset:0;z-index:20;background:#000;color:#474747;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
-#night.awake{color:#bdbdbd}
-#nightBox{position:absolute;left:10%;top:20%;max-width:60%}
+#night{position:fixed;inset:0;z-index:20;background:#000;color:#a8a8a8;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#nightBox{position:absolute;left:10%;top:20%;max-width:60%;opacity:0;transition:opacity .6s}   /* 平时整屏纯黑，点一下才显示 */
+#night.awake #nightBox{opacity:1}
 #nClock{font-size:44px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
 #nInfo,#nMsg,#nHint{font-size:14px;margin-top:4px;font-variant-numeric:tabular-nums}
 #nMsg{color:#9a6a2e}
@@ -91,11 +97,12 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:t
       <li>屏幕要一直亮着，切到别的 App 录音会中断。</li>
     </ul>
     <ul class="tips" id="tipsNight" hidden>
-      <li>插上充电器，开勿扰模式。录音时屏幕全黑、只有很暗的小字，但必须一直亮着。</li>
-      <li>不要锁屏、不要切到别的 App，否则录音会中断。保险起见先把手机的“自动锁定”设成“永不”。</li>
+      <li>开始后屏幕会变成全黑，看起来像关了，其实一直亮着在录。点一下屏幕能看到状态，早上再点“结束录音”。</li>
+      <li>页面会让屏幕保持常亮。插上充电器，关掉省电模式（省电模式下常亮可能失效），开勿扰模式。</li>
+      <li>不要按电源键锁屏、不要切到别的 App，否则录音会中断。</li>
+      <li>iPhone 上想连浏览器的地址栏都不亮：点分享按钮选“添加到主屏幕”，以后从主屏幕的图标打开。</li>
       <li>手机放在枕头旁边的床头柜上，别放在翻身会碰到的地方，也别放在出风口的气流里。</li>
-      <li>声音每分钟存一次到这台手机的浏览器里，不会上传。只保留约 900 Hz 以下的部分，一晚大约 170 MB。</li>
-      <li>早上点一下屏幕，再点“结束录音”。</li>
+      <li>声音每分钟存一次到这台手机里，不会上传。只保留约 900 Hz 以下的部分，一晚大约 170 MB。</li>
     </ul>
   </section>
 
@@ -137,7 +144,7 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:t
   <section class="card" id="nightView" hidden>
     <h2 id="nvTitle"></h2>
     <p class="info" id="nvInfo"></p>
-    <span class="lab">整晚的低频响度（20–300 Hz，dBFS）</span>
+    <span class="lab">整晚的低频响度（dBFS）。粗线：每分钟的平均；细线：这一分钟里最响的半秒，突然轰几声会在细线上冒尖</span>
     <canvas id="cvLvl" class="short" aria-label="整晚低频响度曲线"></canvas>
     <span class="lab">整晚的低频声谱（0–300 Hz，越亮越响）</span>
     <canvas id="cvSpec" class="tall" aria-label="整晚低频声谱图"></canvas>
@@ -156,7 +163,7 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:t
     <div id="nClock">--:--</div>
     <div id="nInfo"></div>
     <div id="nMsg"></div>
-    <div id="nHint">点一下屏幕可以结束</div>
+    <div id="nHint"></div>
     <button type="button" id="nStop" hidden>结束录音</button>
   </div>
 </div>
@@ -334,12 +341,29 @@ const LF = (() => {
     return row;
   }
 
+  /* 突发检查：先滤出 20–200 Hz，再每半秒算一次响度。返回最响的半秒和中位数（dBFS）。
+     “嘟嘟嘟响几声又消失”这种声音，在一分钟的平均里会被冲淡，但最响的半秒会明显高出中位数。 */
+  function burstStats(y, fs) {
+    const blk = Math.round(fs * 0.5), skip = Math.round(fs * 0.25);          // 开头 0.25 秒是滤波器的起振，不算
+    if (y.length < skip + 3 * blk) return { bmax: -200, bmed: -200 };
+    const bq = (f0, hp) => { const w = 2 * Math.PI * f0 / fs, c = Math.cos(w), al = Math.sin(w) / Math.SQRT2, a0 = 1 + al, k = hp ? (1 + c) / 2 : (1 - c) / 2; return [k / a0, (hp ? -2 : 2) * k / a0, k / a0, -2 * c / a0, (1 - al) / a0]; };
+    const H = bq(20, true), L = bq(200, false);
+    let x1 = 0, x2 = 0, u1 = 0, u2 = 0, v1 = 0, v2 = 0, s = 0, n = 0; const lv = [];
+    for (let i = 0; i < y.length; i++) {
+      const x = y[i], u = H[0] * x + H[1] * x1 + H[2] * x2 - H[3] * u1 - H[4] * u2; x2 = x1; x1 = x;
+      const v = L[0] * u + L[1] * u1 + L[2] * u2 - L[3] * v1 - L[4] * v2; u2 = u1; u1 = u; v2 = v1; v1 = v;
+      if (i < skip) continue;
+      s += v * v; if (++n === blk) { lv.push(10 * Math.log10(s / blk + 1e-20)); s = 0; n = 0; }
+    }
+    return { bmax: Math.max.apply(null, lv), bmed: medianOf(lv) };
+  }
+
   /* 整晚模式里每一段（默认 1 分钟）的小结 */
   function minuteSummary(y, fs) {
-    const st = levelStats(y), r = analyze(y, fs);
-    if (!r) return { rms: st.rms, peak: st.peak, lf: -200, peaks: [], row: null };
+    const st = levelStats(y), r = analyze(y, fs), b = burstStats(y, fs);
+    if (!r) return { rms: st.rms, peak: st.peak, lf: -200, bmax: b.bmax, bmed: b.bmed, peaks: [], row: null };
     const top = r.peaks.slice().sort((a, b) => b.db - a.db).slice(0, 8).sort((a, b) => a.f - b.f);
-    return { rms: st.rms, peak: st.peak, lf: bandDb(r, 20, 300), peaks: top.map(p => [Math.round(p.f * 100) / 100, Math.round(p.db * 10) / 10]), row: specRow(r, 300, 0.5) };
+    return { rms: st.rms, peak: st.peak, lf: bandDb(r, 20, 300), bmax: b.bmax, bmed: b.bmed, peaks: top.map(p => [Math.round(p.f * 100) / 100, Math.round(p.db * 10) / 10]), row: specRow(r, 300, 0.5) };
   }
 
   /* 两个声道其实是同一路信号？（单麦被复制成双声道） */
@@ -381,7 +405,7 @@ const LF = (() => {
     return out.buffer;
   }
 
-  return { fftInPlace, lowpassTaps, decimate, StreamDecimator, welch, spectrum, medfilt, analyze, levelStats, bandDb, specRow, minuteSummary, sameSignal, wavHeader24, pack24, encodeWav24, ROLL_F };
+  return { fftInPlace, lowpassTaps, decimate, StreamDecimator, welch, spectrum, medfilt, analyze, levelStats, bandDb, specRow, burstStats, minuteSummary, sameSignal, wavHeader24, pack24, encodeWav24, ROLL_F };
 })();
 </script>
 
@@ -423,6 +447,7 @@ let tStart = 0, tickId = 0, lastLive = 0, curInfo = null, deviceId = '', devLabe
 const takes = []; let shown = -1, saveUrl = '';
 let night = null, writeQ = Promise.resolve();          // 正在进行的整晚录音
 let sessions = [], view = null, nvUrl = '', nvBlob = null, nvName = '', awakeT = 0, stopArmedAt = 0, delArmed = 0;
+let wakeVid = null, wakeTimer = 0;                     // 屏幕常亮的备用办法（见 startVideoWake）
 
 const m = v => { const r = Math.round(v); return (r < 0 ? '−' : r > 0 ? '+' : '') + Math.abs(r); };
 const neg = v => { const r = Math.round(v); return (r < 0 ? '−' : '') + Math.abs(r); };
@@ -462,6 +487,9 @@ function ui() {
   $('nightList').hidden = !(idle && isNight && sessions.length);
   $('nightView').hidden = !(idle && isNight && view);
   $('night').hidden = phase !== 'night';
+  const root = document.documentElement;                 // 整晚录音时连页面底色、浏览器工具栏的着色都换成黑的
+  root.classList.toggle('nighton', phase === 'night');
+  $('themeColor').content = phase === 'night' ? '#000000' : getComputedStyle(root).getPropertyValue('--bg').trim();
 }
 
 /* ---------- 麦克风和采集 ---------- */
@@ -576,8 +604,10 @@ function teardown() {
   teardownGraph();
   try { if (wake) wake.release(); } catch (e) {}
   wake = null;
+  stopVideoWake(); exitFull();
 }
 
+/* 屏幕常亮：首选浏览器的 Wake Lock 接口 */
 async function requestWake() {
   try {
     if (!navigator.wakeLock || document.hidden) return;
@@ -585,6 +615,37 @@ async function requestWake() {
     w.addEventListener('release', () => { if (wake === w) wake = null; });
     wake = w;
   } catch (e) { wake = null; }
+}
+
+/* 备用：Wake Lock 拿不到时，放一段几乎看不见的无声“视频”（其实是一块黑色画布），正在播放的视频也能让屏幕不熄。
+   只在整晚模式、且首选办法失败时才用。 */
+function startVideoWake() {
+  if (wakeVid) return;
+  try {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 16;
+    if (!cv.captureStream) return;
+    const g = cv.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, 16, 16);
+    const v = document.createElement('video');
+    v.muted = true; v.playsInline = true; v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
+    v.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:30';
+    v.srcObject = cv.captureStream(1);
+    document.body.appendChild(v);
+    const p = v.play(); if (p && p.catch) p.catch(() => {});
+    let k = 0; wakeTimer = setInterval(() => { g.fillStyle = (k++ & 1) ? '#000' : '#010101'; g.fillRect(0, 0, 16, 16); }, 1000);
+    wakeVid = v;
+  } catch (e) { wakeVid = null; }
+}
+function stopVideoWake() {
+  clearInterval(wakeTimer);
+  if (wakeVid) { try { wakeVid.pause(); wakeVid.srcObject = null; wakeVid.remove(); } catch (e) {} wakeVid = null; }
+}
+
+/* 全屏：安卓上能把浏览器的地址栏也藏掉；iPhone 的 Safari 不支持，会直接跳过 */
+function goFull() {
+  try { const el = document.documentElement; if (!document.fullscreenElement && el.requestFullscreen) { const p = el.requestFullscreen({ navigationUI: 'hide' }); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
+}
+function exitFull() {
+  try { if (document.fullscreenElement && document.exitFullscreen) { const p = document.exitFullscreen(); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
 }
 
 function onChunk(d) {
@@ -609,12 +670,13 @@ async function start() {
     say('这个页面要用 https 地址打开，浏览器才允许用麦克风。', true); return;
   }
   const nightMode = opt.use === 'night';
+  if (nightMode) goFull();                 // 要趁着这次点击马上申请，晚了浏览器不给
   phase = 'init'; ui(); say('');
   try {
     if (nightMode) await nightReady();
     await buildGraph(nightMode);
     await requestWake();
-    if (nightMode && !wake) say('这个浏览器不能保持屏幕常亮：请先把手机的“自动锁定”设成“永不”，否则锁屏后录音会停。', true);
+    if (nightMode && !wake) { startVideoWake(); say('没能开启屏幕常亮（多半是开了省电模式）。已改用备用办法，但不保证有效：保险起见请把手机的“自动锁定”设成“永不”。', true); }
     cap = false; A = []; B = []; nSamp = 0; sawStereo = false; liveRms = -200; lastLive = 0;
     phase = 'count'; tStart = performance.now();
     $('big').textContent = COUNT; $('bigSub').textContent = '把手机放好，手拿开';
@@ -756,8 +818,8 @@ function beginNight() {
   night = { id, fsd, seq: 0, minBuf: new Float32Array(Math.round(fsd * CHUNK_SEC)), minN: 0, lastAt: performance.now(), lastRestart: 0,
     restarting: false, force: false, gapFrom: 0, dead: false, lvl: -200, ticks: 0, sess };
   queueWrite(() => tx(['sessions'], 'readwrite', t => { t.objectStore('sessions').put(sess); }));
-  phase = 'night'; cap = true; say(''); view = null;
-  $('nMsg').textContent = ''; nightAwake(false); moveNightBox(); updateNightScreen();
+  phase = 'night'; cap = true; view = null;
+  $('nMsg').textContent = ''; moveNightBox(); updateNightScreen(); nightAwake(true, 6000);   // 先亮 6 秒让人看到已经开始，然后全黑
   tickId = setInterval(nightTick, 1000); ui();
 }
 
@@ -784,7 +846,7 @@ function flushMinute(tEnd) {
   const pcm = LF.pack24(y);
   let sm = null; try { sm = LF.minuteSummary(y, N.fsd); } catch (e) {}
   const rec = { sid: N.id, seq, t1, n: N.minN, pcm: pcm.buffer };
-  const min = Object.assign({ sid: N.id, seq, t1, n: N.minN }, sm || { rms: -200, peak: -200, lf: -200, peaks: [], row: null });
+  const min = Object.assign({ sid: N.id, seq, t1, n: N.minN }, sm || { rms: -200, peak: -200, lf: -200, bmax: -200, bmed: -200, peaks: [], row: null });
   const sess = N.sess; sess.n = N.seq; sess.t1 = t1; sess.samples += N.minN; sess.bytes += pcm.length;
   N.minN = 0;
   queueWrite(() => tx(['chunks', 'mins', 'sessions'], 'readwrite', t => {
@@ -797,7 +859,7 @@ function nightTick() {
   const now = performance.now(), idle = now - N.lastAt;
   if (++N.ticks % 60 === 0) moveNightBox();
   updateNightScreen();
-  if (!wake && !document.hidden) requestWake();
+  if (!wake && !document.hidden && N.ticks % 10 === 0) requestWake().then(() => { if (wake) stopVideoWake(); else if (phase === 'night') startVideoWake(); });
   if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {});
   if (idle > 8000 || N.force) {
     if (!N.gapFrom) { N.gapFrom = Date.now() - Math.round(idle); $('nMsg').textContent = '麦克风没有送来声音，正在恢复…'; }
@@ -843,16 +905,17 @@ function updateNightScreen() {
   const N = night; if (!N) return;
   $('nClock').textContent = hm(Date.now());
   $('nInfo').textContent = `已录 ${durTxt((N.sess.samples + N.minN) / N.fsd)} · 当前 ${neg(N.lvl)} dB` + (N.sess.gaps.length ? ` · 中断过 ${N.sess.gaps.length} 次` : '');
+  $('nHint').textContent = (wake ? '屏幕常亮：已开启' : wakeVid ? '屏幕常亮：备用办法（不保证有效）' : '屏幕常亮：没有生效，请把自动锁定设成“永不”') + '。几秒后屏幕会全黑，点一下再显示。';
 }
 function moveNightBox() { const b = $('nightBox'); b.style.left = (6 + Math.random() * 28).toFixed(1) + '%'; b.style.top = (8 + Math.random() * 50).toFixed(1) + '%'; }
-function nightAwake(on) {
+function nightAwake(on, ms) {
   clearTimeout(awakeT);
-  $('night').classList.toggle('awake', on); $('nStop').hidden = !on; $('nHint').hidden = on;
-  if (on) { stopArmedAt = performance.now() + 700; awakeT = setTimeout(() => nightAwake(false), 8000); }
+  $('night').classList.toggle('awake', on); $('nStop').hidden = !on;
+  if (on) { stopArmedAt = performance.now() + 700; awakeT = setTimeout(() => nightAwake(false), ms || 8000); }
 }
 $('night').addEventListener('click', e => {
   if (e.target.id === 'nStop') { if (performance.now() >= stopArmedAt) stopNight(); return; }
-  nightAwake(true);
+  nightAwake(true); goFull();
   if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {});
   if (night && (night.gapFrom || night.force)) { night.lastRestart = 0; night.force = true; }
 });
@@ -887,6 +950,9 @@ function nightText(sess, mins) {
     series.push(`${hm(startOf(sess, part[0]))} ${(10 * Math.log10(part.reduce((s, x) => s + Math.pow(10, x.lf / 10), 0) / part.length)).toFixed(0)}`);
   }
   const s = sess.set || {}, quiet = ok.length ? ok.reduce((a, b) => (b.lf < a.lf ? b : a)) : null;
+  const burst = ok.filter(x => x.bmax > -190 && x.bmed > -190).sort((a, b) => (b.bmax - b.bmed) - (a.bmax - a.bmed)), bl = [];
+  for (const x of burst) { if (bl.some(o => Math.abs(o.seq - x.seq) < 2)) continue; bl.push(x); if (bl.length >= 8) break; }
+  const nBurst = burst.filter(x => x.bmax - x.bmed >= 6).length;
   return [
     `【整晚录音】${sess.dev}｜${MODE_NAME[sess.mode] || ''}｜${md(sess.t0)} ${hm(sess.t0)} → ${hm(sess.t1)}｜${durTxt(sess.samples / sess.fsd)}｜${mb(sess.bytes)}${sess.done ? '' : '｜没有正常结束'}`,
     `输入: ${sess.label}｜${sess.fs} → ${sess.fsd.toFixed(1)} Hz｜实际生效: 回声消除 ${onoff(s.echoCancellation)} / 降噪 ${onoff(s.noiseSuppression)} / 自动增益 ${onoff(s.autoGainControl)}｜${sess.kind}`,
@@ -894,6 +960,8 @@ function nightText(sess, mins) {
     `低频响度(20–300Hz, dBFS) 每 ${Math.round(g * sess.chunkSec / 60) || 1} 分钟: ` + series.join(' | '),
     '最响的时刻: ' + (top.length ? top.map(x => `${hm(startOf(sess, x))} ${x.lf.toFixed(0)}dB [${peakTxt(x)}]`).join('；') : '无'),
     '最安静的时刻: ' + (quiet ? `${hm(startOf(sess, quiet))} ${quiet.lf.toFixed(0)}dB [${peakTxt(quiet)}]` : '无'),
+    `突发(20–200Hz 最响半秒比该分钟中位数高 6dB 以上)的分钟数: ${nBurst} / ${ok.length}`,
+    '突发最明显的时刻: ' + (bl.length ? bl.map(x => `${hm(startOf(sess, x))} +${(x.bmax - x.bmed).toFixed(0)}dB(到 ${x.bmax.toFixed(0)})`).join('，') : '无'),
     'UA: ' + (sess.ua || ua),
   ].join('\n');
 }
@@ -1102,15 +1170,19 @@ function plotLevel(cv, sess, mins) {
   const c = canvasSetup(cv); if (!c) return; const { g, W, H, col } = c;
   const x0 = 36, x1 = W - 6, y0 = 8, y1 = H - 22, n = mins.length, vals = mins.filter(x => x.lf > -190).map(x => x.lf);
   if (!vals.length) return;
+  for (const x of mins) if (x.bmax > -190) vals.push(x.bmax);
   const top = Math.ceil((Math.max.apply(null, vals) + 1) / 5) * 5, bot = Math.min(top - 10, Math.floor((Math.min.apply(null, vals) - 1) / 5) * 5);
   const ly = d => y0 + (top - d) / (top - bot) * (y1 - y0), lx = i => x0 + (n === 1 ? 0.5 : i / (n - 1)) * (x1 - x0);
   g.strokeStyle = col('--line'); g.fillStyle = col('--muted'); g.textAlign = 'right'; g.textBaseline = 'middle';
   const step = (top - bot) > 30 ? 10 : 5;
   for (let d = top; d >= bot; d -= step) { const y = Math.round(ly(d)) + 0.5; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.fillText(d, x0 - 5, y); }
   timeTicks(g, sess, mins, x0, x1, y1);
-  g.strokeStyle = col('--accent'); g.lineWidth = 1.5; g.lineJoin = 'round'; g.beginPath(); let on = false;
-  for (let i = 0; i < n; i++) { if (mins[i].lf <= -190) { on = false; continue; } const x = lx(i), y = ly(mins[i].lf); if (on) g.lineTo(x, y); else { g.moveTo(x, y); on = true; } }
-  g.stroke();
+  const line = (key, color, w) => {
+    g.strokeStyle = col(color); g.lineWidth = w; g.lineJoin = 'round'; g.beginPath(); let on = false;
+    for (let i = 0; i < n; i++) { const v = mins[i][key]; if (!(v > -190)) { on = false; continue; } const x = lx(i), y = ly(v); if (on) g.lineTo(x, y); else { g.moveTo(x, y); on = true; } }
+    g.stroke();
+  };
+  line('bmax', '--mid', 0.8); line('lf', '--accent', 1.8);
   if (n === 1) { g.fillStyle = col('--accent'); g.beginPath(); g.arc(lx(0), ly(mins[0].lf), 3, 0, 6.3); g.fill(); }
 }
 
