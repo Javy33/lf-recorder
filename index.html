@@ -64,11 +64,16 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:t
 .take small{display:block;color:var(--muted);font-size:12px}
 .loud{font-size:14px;margin:0 0 8px;font-variant-numeric:tabular-nums}
 .loud small{display:block;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+input.key{width:100%;min-height:44px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;font:16px/1.4 ui-monospace,Menlo,Consolas,monospace;padding:6px 10px}
+.srow{display:flex;gap:6px;align-items:stretch}
+.srow .take{flex:1;min-width:0}
+.srow .btn{flex:0 0 auto;min-width:64px;max-width:40%}
+.warn{color:var(--bad);font-weight:600}
 #night{position:fixed;inset:0;z-index:20;background:#000;color:#a8a8a8;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 #nightBox{position:absolute;left:10%;top:20%;max-width:60%;opacity:0;transition:opacity .6s}   /* 平时整屏纯黑，点一下才显示 */
 #night.awake #nightBox{opacity:1}
 #nClock{font-size:44px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
-#nInfo,#nMsg,#nHint{font-size:14px;margin-top:4px;font-variant-numeric:tabular-nums}
+#nInfo,#nMsg,#nUp,#nHint{font-size:14px;margin-top:4px;font-variant-numeric:tabular-nums}
 #nMsg{color:#9a6a2e}
 #nStop{margin-top:18px;min-height:52px;padding:8px 22px;border:1px solid #777;border-radius:12px;background:transparent;color:#e2e2e2;font:inherit;font-size:17px}
 [hidden]{display:none!important}
@@ -102,8 +107,21 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:t
       <li>不要按电源键锁屏、不要切到别的 App，否则录音会中断。</li>
       <li>iPhone 上想连浏览器的地址栏都不亮：点分享按钮选“添加到主屏幕”，以后从主屏幕的图标打开。</li>
       <li>手机放在枕头旁边的床头柜上，别放在翻身会碰到的地方，也别放在出风口的气流里。</li>
-      <li>声音每分钟存一次到这台手机里，不会上传。只保留约 900 Hz 以下的部分，一晚大约 170 MB。</li>
+      <li id="tipUp">声音每分钟存一次到这台手机里，同时自动传到你自己的服务器（要连着网；断网时先存手机，连上后自动补传）。只保留约 900 Hz 以下的部分，一晚大约 170 MB。</li>
     </ul>
+  </section>
+
+  <section class="card" id="srvCard" hidden>
+    <h2>服务器上的录音</h2>
+    <p class="info" id="srvInfo"></p>
+    <div id="srvKeyBox" hidden>
+      <div class="row"><label for="srvKey">服务器口令（每台手机只需要填一次）</label>
+        <input class="key" id="srvKey" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="xxxx-xxxx-xxxx-xxxx"></div>
+      <div class="btns"><button type="button" class="btn pri" id="srvKeySave">保存口令</button></div>
+    </div>
+    <div class="takes" id="srvList"></div>
+    <p class="status" id="srvMsg" role="status" aria-live="polite"></p>
+    <div class="btns" id="srvBtns" hidden><button type="button" class="btn" id="srvRefresh">刷新</button><button type="button" class="btn" id="srvForget">换口令</button></div>
   </section>
 
   <section class="card" id="live" hidden>
@@ -153,7 +171,8 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:t
     <span class="lab">把录音存成文件，传到电脑上做详细分析</span>
     <div class="btns" id="nvExport"></div>
     <div class="btns"><a class="btn pri" id="nvSave" hidden download></a><button type="button" class="btn" id="nvShare" hidden>分享这个文件</button></div>
-    <div class="btns"><button type="button" class="btn pri" id="nvCopy">复制摘要</button><button type="button" class="btn danger" id="nvDel">删除这次录音</button></div>
+    <div class="btns"><button type="button" class="btn" id="nvUp" hidden>把这次录音传到服务器</button></div>
+    <div class="btns"><button type="button" class="btn pri" id="nvCopy">复制摘要</button><button type="button" class="btn danger" id="nvDel">从这台手机删除</button></div>
     <textarea id="nvTxt" rows="9" readonly aria-label="整晚录音摘要的文字版"></textarea>
   </section>
 </main>
@@ -163,6 +182,7 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:t
     <div id="nClock">--:--</div>
     <div id="nInfo"></div>
     <div id="nMsg"></div>
+    <div id="nUp"></div>
     <div id="nHint"></div>
     <button type="button" id="nStop" hidden>结束录音</button>
   </div>
@@ -407,6 +427,146 @@ const LF = (() => {
 
   return { fftInPlace, lowpassTaps, decimate, StreamDecimator, welch, spectrum, medfilt, analyze, levelStats, bandDb, specRow, burstStats, minuteSummary, sameSignal, wavHeader24, pack24, encodeWav24, ROLL_F };
 })();
+
+/* 把整晚录音同步到服务器。同样不碰页面：网络、存储、定时器都由外面传进来，Node 里可以直接测。
+   做法：每一轮先问服务器“每次录音已经收到第几段”，再把手机里多出来的段按顺序补上去。
+   服务器只接受“下一段”，所以重复发、断网后重发、页面重开后接着发，都不会把文件弄乱。 */
+const LFSYNC = (() => {
+  'use strict';
+  const RETRY = [5, 10, 20, 40, 80, 160, 300];       // 传不上去时，隔多少秒再试
+  const KEEP = ['id', 't0', 't1', 'fs', 'fsd', 'n', 'samples', 'bytes', 'chunkSec', 'dev', 'mode', 'label', 'kind', 'gaps', 'restarts', 'ua'];
+  const SET_KEEP = ['echoCancellation', 'noiseSuppression', 'autoGainControl', 'sampleRate', 'channelCount'];
+
+  /* 发给服务器的录音信息 */
+  function metaOf(s, name) {
+    const m = { name, done: !!s.done, tz: new Date(s.t0).getTimezoneOffset(), set: {} };
+    for (const k of KEEP) if (s[k] !== undefined && s[k] !== null) m[k] = s[k];
+    for (const k of SET_KEEP) { const v = s.set && s.set[k]; if (typeof v === 'boolean' || typeof v === 'number') m.set[k] = v; }
+    m.label = String(m.label || '').slice(0, 200); m.ua = String(m.ua || '').slice(0, 400); m.kind = String(m.kind || '').slice(0, 16);
+    return m;
+  }
+
+  /* io: { api(method, path, body, isJson) → Promise<{status, json}>（连不上时 reject）,
+           sessions() → Promise<录音记录[]>, chunk(id, seq) → Promise<{pcm, t1}|undefined>,
+           name(录音记录) → 文件名, now(), setTimer(fn, ms), clearTimer(h), onState(st) } */
+  function create(io) {
+    /* phase: off 没开 | busy 正在传 | ok 都传完了 | wait 暂时连不上，会重试 | auth 口令不对 | full 服务器满了 | bad 服务器拒收 */
+    const st = { phase: 'off', err: '', srv: null, at: 0, left: 0, sent: 0, fails: 0 };
+    let enabled = false, running = false, again = false, timer = null, runP = Promise.resolve();
+    const emit = () => { try { if (io.onState) io.onState(st); } catch (e) {} };
+    const halt = (phase, err) => ({ halt: phase, err: err || '' });
+
+    async function call(method, path, body, isJson) {
+      let r;
+      try { r = await io.api(method, path, body, isJson); } catch (e) { throw halt('wait', '连不上服务器'); }
+      if (r.status === 401) throw halt('auth');
+      if (r.status === 507) throw halt('full');
+      if (r.status >= 500 || r.status === 408 || r.status === 429 || !r.json) throw halt('wait', '服务器暂时没有回应（' + r.status + '）');
+      return r;
+    }
+
+    const leftOf = (loc, srv, gone) => loc.reduce((a, s) => { const r = srv.get(s.id); return gone.has(s.id) ? a : a + Math.max(0, s.n - (r ? r.next : 0)); }, 0);
+
+    async function pass() {
+      const L = (await call('GET', '/list')).json;
+      if (!L.ok || !Array.isArray(L.sessions)) throw halt('wait', '服务器的回应看不懂');
+      if (!Array.isArray(L.deleted)) L.deleted = [];
+      st.srv = L; st.at = io.now();
+      const srv = new Map(L.sessions.map(x => [x.id, x])), gone = new Set(L.deleted);
+      const loc = (await io.sessions()).filter(s => s.srv && !gone.has(s.id)).sort((a, b) => a.t0 - b.t0);
+      let bad = '';
+      const wasDeleted = id => {                         // 刚对完表它就被（别的设备）删了：这一轮不再传它
+        gone.add(id); if (!L.deleted.includes(id)) L.deleted.push(id);
+        L.sessions = L.sessions.filter(x => x.id !== id); srv.delete(id);
+      };
+      st.left = leftOf(loc, srv, gone); emit();
+      for (const s of loc) {
+        let r = srv.get(s.id);
+        const putMeta = async () => {
+          const res = await call('PUT', '/rec/' + s.id + '/meta', JSON.stringify(metaOf(s, io.name(s))), true);
+          if (res.status === 200 && res.json.s) {
+            if (r) Object.assign(r, res.json.s); else { r = res.json.s; L.sessions.push(r); srv.set(s.id, r); }
+            return true;
+          }
+          if (res.status === 410) wasDeleted(s.id); else bad = '服务器不接受这次录音的信息（' + (res.json.err || res.status) + '）';
+          return false;
+        };
+        if (!r && !(await putMeta())) continue;
+        let seq = r.next, guard = 2 * s.n + 10, okSoFar = true;
+        while (seq < s.n && guard-- > 0) {
+          const c = await io.chunk(s.id, seq), pcm = c && c.pcm ? c.pcm : new ArrayBuffer(0);     // 手机里缺的段按空段传，和本地导出时跳过它一致
+          const res = await call('PUT', '/rec/' + s.id + '/chunk/' + seq + '?t1=' + (c && c.t1 ? Math.round(c.t1) : 0), pcm, false);
+          const nx = res.json.next;
+          if ((res.status === 200 || res.status === 409) && Number.isInteger(nx) && nx >= 0) {
+            if (res.status === 200 && !res.json.dup) { st.sent++; r.bytes += pcm.byteLength; r.size += pcm.byteLength; L.used += pcm.byteLength; L.room = Math.max(0, L.room - pcm.byteLength); if (c && c.t1 > r.t1) r.t1 = c.t1; }
+            seq = nx; r.next = nx; r.updated = L.now;
+            st.left = leftOf(loc, srv, gone); emit();
+          } else {
+            okSoFar = false;
+            if (res.status === 410) wasDeleted(s.id);
+            else bad = '服务器不接受第 ' + (seq + 1) + ' 段（' + (res.json.err || res.status) + '）';
+            break;
+          }
+        }
+        if (okSoFar && (r.done !== !!s.done || r.n !== s.n || r.gaps !== (s.gaps ? s.gaps.length : 0))) await putMeta();
+      }
+      st.left = leftOf(loc, srv, gone);
+      return bad;
+    }
+
+    /* 返回的 Promise 在这一轮（包括中途又被催的那一轮）全部做完时结束 */
+    function run() {
+      if (!enabled) return Promise.resolve();
+      if (running) { again = true; return runP; }
+      running = true; runP = loop(); return runP;
+    }
+    async function loop() {
+      if (timer !== null) { io.clearTimer(timer); timer = null; }
+      do {
+        again = false; st.phase = 'busy'; st.err = ''; emit();
+        try { const bad = await pass(); st.phase = bad ? 'bad' : 'ok'; st.err = bad; st.fails = 0; }
+        catch (e) {
+          if (e && e.halt) { st.phase = e.halt; st.err = e.err; } else { st.phase = 'wait'; st.err = String((e && e.message) || e); }
+          if (st.phase === 'wait') st.fails++;
+          if (st.phase === 'auth') again = false;
+        }
+      } while (again && enabled);
+      running = false;
+      if (!enabled) { st.phase = 'off'; st.srv = null; }
+      else if (st.phase === 'wait') timer = io.setTimer(run, 1000 * RETRY[Math.min(st.fails, RETRY.length) - 1]);
+      else if (st.phase === 'full') timer = io.setTimer(run, 300000);
+      emit();
+    }
+
+    return {
+      state: st,
+      start() { enabled = true; return run(); },
+      stop() { enabled = false; if (timer !== null) { io.clearTimer(timer); timer = null; } if (!running) { st.phase = 'off'; st.srv = null; st.left = 0; } emit(); },
+      kick() { return run(); },
+      busy: () => running,
+      /* 从服务器删除一次录音。成功返回 true；失败抛出 { halt, err } 或普通错误 */
+      async remove(id) {
+        const res = await call('DELETE', '/rec/' + id);
+        if (res.status !== 200 && res.status !== 404) throw halt('bad', res.json.err || String(res.status));
+        if (st.srv) { st.srv.sessions = st.srv.sessions.filter(x => x.id !== id); if (!st.srv.deleted.includes(id)) st.srv.deleted.push(id); }
+        emit(); run();
+        return true;
+      },
+      /* 把删过的录音重新传上去（用户明确要求时才调用） */
+      async revive(id) {
+        const s = (await io.sessions()).find(x => x.id === id); if (!s) return false;
+        const m = metaOf(s, io.name(s)); m.revive = true;
+        const res = await call('PUT', '/rec/' + id + '/meta', JSON.stringify(m), true);
+        if (res.status !== 200) throw halt('bad', res.json.err || String(res.status));
+        if (st.srv) st.srv.deleted = st.srv.deleted.filter(x => x !== id);
+        run();
+        return true;
+      },
+    };
+  }
+
+  return { create, metaOf, RETRY };
+})();
 </script>
 
 <script>
@@ -423,6 +583,20 @@ const DEMO = QS.has('demo'), FORCE_SP = QS.has('sp');
 const CHUNK_SEC = Math.min(600, Math.max(2, +QS.get('chunk') || 60));   // 整晚模式每段多长（测试时可调小）
 const COUNT = 3, NIGHT_MAX_H = 12;
 const ua = navigator.userAgent;
+/* 上传只在从 thejavy.com 打开时才有；GitHub 上那份副本是另一个网址，不带上传（本机地址留给测试用） */
+const API = /^(thejavy\.com|localhost|127\.0\.0\.1)$/.test(location.hostname) ? '/lf/api' : null;
+const normKey = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+let upKey = ''; try { upKey = normKey(localStorage.getItem('lf-key')); } catch (e) {}
+let netOff = false, keyEdit = false, srvArm = { id: '', until: 0 }, srvDeleting = '';
+function saveKey(k) { upKey = k; try { localStorage.setItem('lf-key', k); } catch (e) {} }
+function keyFromLink() {   // 从“设置口令”的链接或二维码进来：把口令记在这台手机里，再把它从地址栏抹掉
+  const hit = /[#&]key=([^&]*)/.exec(location.hash || ''); if (!hit) return false;
+  let k = ''; try { k = normKey(decodeURIComponent(hit[1])); } catch (e) {}
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  if (!API || k.length < 16) return false;
+  saveKey(k); return true;
+}
+keyFromLink();
 const opt = { use: 'quick', dev: /iPhone|iPad/.test(ua) ? 'iPhone' : /Android/.test(ua) ? '三星' : '其他', mode: 'raw', dur: 30 };
 
 /* 音频线程里的采集器。快速测试：原样送出全速声音；整晚模式：就地降到 2 kHz 再送出，省内存。 */
@@ -484,6 +658,7 @@ function ui() {
   $('cvLive').hidden = isNight;
   $('result').hidden = !(idle && !isNight && shown >= 0);
   $('hist').hidden = !(idle && !isNight && takes.length >= 2);
+  $('srvCard').hidden = !(idle && isNight);
   $('nightList').hidden = !(idle && isNight && sessions.length);
   $('nightView').hidden = !(idle && isNight && view);
   $('night').hidden = phase !== 'night';
@@ -671,6 +846,7 @@ async function start() {
   }
   const nightMode = opt.use === 'night';
   if (nightMode) goFull();                 // 要趁着这次点击马上申请，晚了浏览器不给
+  if (nightMode) sync.kick();              // 顺便确认一下服务器连得上
   phase = 'init'; ui(); say('');
   try {
     if (nightMode) await nightReady();
@@ -812,9 +988,10 @@ function queueWrite(fn) {
 
 /* ---------- 整晚录音：过程 ---------- */
 function beginNight() {
-  const fs = ctx.sampleRate, M = Math.max(1, Math.round(fs / 2000)), fsd = fs / M, now = Date.now(), id = 'n' + now.toString(36);
+  const fs = ctx.sampleRate, M = Math.max(1, Math.round(fs / 2000)), fsd = fs / M, now = Date.now();
+  const id = 'n' + now.toString(36) + Math.random().toString(36).slice(2, 5).padEnd(3, '0');     // 后三位随机：两台手机同时开始也不会撞编号
   const sess = { id, t0: now, t1: now, fs, fsd, n: 0, samples: 0, bytes: 0, chunkSec: CHUNK_SEC, dev: opt.dev, mode: opt.mode,
-    label: curInfo.label, set: curInfo.set, kind: curInfo.kind, gaps: [], restarts: 0, done: false, ua };
+    label: curInfo.label, set: curInfo.set, kind: curInfo.kind, gaps: [], restarts: 0, done: false, ua, srv: API ? 1 : 0 };   // srv=1：这次录音要传到服务器
   night = { id, fsd, seq: 0, minBuf: new Float32Array(Math.round(fsd * CHUNK_SEC)), minN: 0, lastAt: performance.now(), lastRestart: 0,
     restarting: false, force: false, gapFrom: 0, dead: false, lvl: -200, ticks: 0, sess };
   queueWrite(() => tx(['sessions'], 'readwrite', t => { t.objectStore('sessions').put(sess); }));
@@ -851,7 +1028,7 @@ function flushMinute(tEnd) {
   N.minN = 0;
   queueWrite(() => tx(['chunks', 'mins', 'sessions'], 'readwrite', t => {
     t.objectStore('chunks').put(rec); t.objectStore('mins').put(min); t.objectStore('sessions').put(sess);
-  }));
+  }).then(() => { sync.kick(); }));          // 手机里存好了，再传服务器
 }
 
 function nightTick() {
@@ -897,14 +1074,19 @@ async function stopNight(note) {
   night = null; phase = 'idle';
   await refreshSessions();
   await showSession(sess.id);
-  say(note || '整晚录音已经存在这台手机上。', !!note && /失败|变了/.test(note));
+  say(note || ('整晚录音已经存在这台手机上。' + (API && upKey ? '最后一小段正在传到服务器：上面“服务器上的录音”里这一条显示“已传完整”之前，先别关这个页面。' : API ? '还没填服务器口令，所以没有上传；在上面填好口令后会自动补传。' : '')), !!note && /失败|变了/.test(note));
   ui();
+  sync.kick().then(() => {                 // 传完了就把上面那句“先别关”换掉
+    const r = srvOf(sess.id);
+    if (!note && phase === 'idle' && srvLive() && sync.state.phase === 'ok' && r && r.done && r.next >= sess.n) say('整晚录音已经存在这台手机上，也已经完整传到服务器，可以关页面了。');
+  });
 }
 
 function updateNightScreen() {
   const N = night; if (!N) return;
   $('nClock').textContent = hm(Date.now());
   $('nInfo').textContent = `已录 ${durTxt((N.sess.samples + N.minN) / N.fsd)} · 当前 ${neg(N.lvl)} dB` + (N.sess.gaps.length ? ` · 中断过 ${N.sess.gaps.length} 次` : '');
+  $('nUp').textContent = nightUpText();
   $('nHint').textContent = (wake ? '屏幕常亮：已开启' : wakeVid ? '屏幕常亮：备用办法（不保证有效）' : '屏幕常亮：没有生效，请把自动锁定设成“永不”') + '。几秒后屏幕会全黑，点一下再显示。';
 }
 function moveNightBox() { const b = $('nightBox'); b.style.left = (6 + Math.random() * 28).toFixed(1) + '%'; b.style.top = (8 + Math.random() * 50).toFixed(1) + '%'; }
@@ -925,11 +1107,151 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && (p
 async function refreshSessions() {
   try { sessions = (await dbReq('sessions', s => s.getAll())).sort((a, b) => b.t0 - a.t0); } catch (e) { sessions = []; }
   if (view && !sessions.some(s => s.id === view.sess.id)) view = null;
+  renderSessions();
+}
+function renderSessions() {
   $('sessList').innerHTML = sessions.map(s => {
     const sec = s.samples / s.fsd;
-    return `<button type="button" class="take" data-id="${esc(s.id)}" aria-current="${!!(view && view.sess.id === s.id)}">${md(s.t0)} ${hm(s.t0)} → ${hm(s.t1)} · ${durTxt(sec)} · ${mb(s.bytes)}<small>${esc(s.dev)} · ${MODE_NAME[s.mode] || ''}${s.done ? '' : ' · 没有正常结束（已存的部分可用）'}${s.gaps && s.gaps.length ? ` · 中断 ${s.gaps.length} 次` : ''}</small></button>`;
+    return `<button type="button" class="take" data-id="${esc(s.id)}" aria-current="${!!(view && view.sess.id === s.id)}">${md(s.t0)} ${hm(s.t0)} → ${hm(s.t1)} · ${durTxt(sec)} · ${mb(s.bytes)}<small>${esc(s.dev)} · ${MODE_NAME[s.mode] || ''}${s.done ? '' : ' · 没有正常结束（已存的部分可用）'}${s.gaps && s.gaps.length ? ` · 中断 ${s.gaps.length} 次` : ''}${upTag(s)}</small></button>`;
   }).join('');
 }
+
+/* ---------- 整晚录音：传到服务器 ---------- */
+function nightName(sess) {
+  const d = new Date(sess.t0);
+  return `lf_night_${DEV_TAG[sess.dev] || 'other'}_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.wav`;
+}
+async function srvApi(method, path, body, isJson) {
+  if (netOff) throw new Error('offline');
+  const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = setTimeout(() => { if (ctl) ctl.abort(); }, 45000);
+  try {
+    const h = { Authorization: 'Bearer ' + upKey }, has = body !== undefined && body !== null;
+    if (has) h['Content-Type'] = isJson ? 'application/json' : 'application/octet-stream';
+    const r = await fetch(API + path, { method, headers: h, body: has ? body : undefined, cache: 'no-store', credentials: 'omit', signal: ctl ? ctl.signal : undefined });
+    let j = null; try { j = await r.json(); } catch (e) {}
+    return { status: r.status, json: j };
+  } finally { clearTimeout(timer); }
+}
+const sync = LFSYNC.create({
+  api: srvApi,
+  sessions: () => dbReq('sessions', s => s.getAll()),
+  chunk: (id, seq) => dbReq('chunks', s => s.get([id, seq])),
+  name: nightName, now: () => Date.now(),
+  setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: h => clearTimeout(h),
+  onState: () => renderSrv(),
+});
+const size = b => b >= 1073741824 ? (b / 1073741824).toFixed(b < 10737418240 ? 1 : 0) + ' GB' : mb(b);
+const srvOf = id => { const L = sync.state.srv; return L ? L.sessions.find(x => x.id === id) : null; };
+const srvGone = id => { const L = sync.state.srv; return !!(L && L.deleted.includes(id)); };
+const srvLive = () => !!(API && upKey && sync.state.srv && sync.state.phase !== 'auth');
+function srvSay(t, err) { const el = $('srvMsg'); el.textContent = t || ''; el.classList.toggle('err', !!err); }
+
+function upTag(s) {            // 本机列表里每次录音后面：传没传上去
+  if (!API) return '';
+  if (!s.srv) return ' · 没有传到服务器';
+  if (!upKey) return ' · 还没传到服务器（没填口令）';
+  if (!srvLive()) return ' · 还没连上服务器';
+  if (srvGone(s.id)) return ' · 已从服务器删除';
+  const r = srvOf(s.id), left = s.n - (r ? r.next : 0);
+  return left > 0 ? ` · 还有 ${left} 段没传到服务器` : ' · 已传到服务器';
+}
+
+function upLine() {            // 一句话说明上传的状况
+  if (!upKey) return '还没填服务器口令，录音只会存在这台手机里。填一次口令，以后每次录音都会自动传上来。';
+  const s = sync.state;
+  if (s.phase === 'auth') return '服务器口令不对，没有上传。请重新填一次。';
+  if (s.phase === 'full') return '服务器空间满了，暂停上传。声音还在这台手机里；删掉服务器上的旧录音后会自动接着传。';
+  if (s.phase === 'wait') return (s.left ? `还有 ${s.left} 段没传上去。` : '') + '暂时连不上服务器，会自动重试；声音已经存在这台手机里。';
+  if (s.phase === 'bad') return s.err + '。声音还在这台手机里。';
+  if (s.phase === 'busy') return s.left ? `正在上传，还差 ${s.left} 段…` : '正在和服务器核对…';
+  if (s.phase === 'ok') return '已连上服务器，这台手机上该传的都传完了。';
+  return '';
+}
+
+function srvRow(x, L) {
+  const sec = x.bytes / 3 / x.fsd, left = x.n - x.next, fresh = L.now - x.updated < 150000;
+  const stt = left > 0 ? `还差 ${left} 段没传上来` : x.done ? '已传完整' : fresh ? '正在录，随录随传' : '没有正常结束（传上来的部分可用）';
+  const armed = srvArm.id === x.id && performance.now() < srvArm.until;
+  return `<div class="srow"><div class="take">${md(x.t0)} ${hm(x.t0)} → ${hm(x.t1)} · ${durTxt(sec)} · ${mb(x.size)}<small>${esc(x.dev || '')} · ${stt}${x.gaps ? ` · 中断 ${x.gaps} 次` : ''}${sessions.some(s => s.id === x.id) ? ' · 这台手机录的' : ''}</small></div><button type="button" class="btn danger" data-del="${esc(x.id)}"${srvDeleting === x.id ? ' disabled' : ''}>${srvDeleting === x.id ? '正在删除…' : armed ? '再点一次，确认删除' : '删除'}</button></div>`;
+}
+
+function renderSrv() {
+  const info = $('srvInfo'), list = $('srvList'), s = sync.state, L = s.srv;
+  if (!API) {
+    info.innerHTML = '这个网址是 GitHub 上的副本，不会把录音传到服务器，只存在手机里。要自动保存到服务器，请改用 <a href="https://thejavy.com/lf/?night">thejavy.com/lf/</a> 打开。';
+    info.classList.remove('warn'); list.innerHTML = ''; $('srvKeyBox').hidden = true; $('srvBtns').hidden = true;
+    $('tipUp').textContent = '声音每分钟存一次到这台手机里。这个网址不会上传；要自动传到服务器请用 thejavy.com/lf/ 打开。只保留约 900 Hz 以下的部分，一晚大约 170 MB。';
+    return;
+  }
+  const live = srvLive();
+  $('srvKeyBox').hidden = !(keyEdit || !upKey || s.phase === 'auth');
+  $('srvBtns').hidden = !upKey;
+  info.textContent = (live ? `服务器已用 ${size(L.used)}，上限 ${size(L.quota)}，大约还能存 ${Math.floor(L.room / 180e6)} 晚。` : '') + upLine();
+  info.classList.toggle('warn', !upKey || s.phase === 'auth' || s.phase === 'full' || s.phase === 'bad');
+  list.innerHTML = !live ? '' : L.sessions.length ? L.sessions.slice().sort((a, b) => b.t0 - a.t0).map(x => srvRow(x, L)).join('') : '<p class="foot">服务器上还没有录音。</p>';
+  renderSessions(); renderNvUp();
+  if (phase === 'night') $('nUp').textContent = nightUpText();
+}
+
+function nightUpText() {       // 录音时黑屏上的那一行
+  const N = night; if (!N || !API) return '';
+  if (!upKey) return '服务器：没填口令，只存在手机里';
+  const s = sync.state, r = srvOf(N.id), got = `已传 ${Math.min(N.seq, r ? r.next : 0)}/${N.seq} 段`;
+  if (s.phase === 'auth') return '服务器：口令不对，只存在手机里';
+  if (s.phase === 'full') return '服务器：空间满了，先存在手机里';
+  if (s.phase === 'bad') return '服务器：拒收，先存在手机里';
+  if (s.phase === 'wait') return `服务器：连不上，会自动补传（${got}）`;
+  return '服务器：' + got;
+}
+
+function renderNvUp() {        // 上线前录的、或者从服务器删掉过的录音：给一个“手动传”的按钮
+  const b = $('nvUp'), on = !!(view && API && upKey && (!view.sess.srv || (srvLive() && srvGone(view.sess.id))));
+  b.hidden = !on; if (on) b.textContent = view.sess.srv ? '重新传到服务器' : '把这次录音传到服务器';
+}
+
+$('srvList').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-del]'); if (!b || b.disabled) return;
+  const id = b.dataset.del, now = performance.now();
+  if (srvArm.id !== id || now > srvArm.until) {
+    srvArm = { id, until: now + 4000 }; renderSrv();
+    setTimeout(() => { if (srvArm.id === id && performance.now() >= srvArm.until) { srvArm = { id: '', until: 0 }; renderSrv(); } }, 4100);
+    return;
+  }
+  srvArm = { id: '', until: 0 }; srvDeleting = id; srvSay(''); renderSrv();
+  const here = sessions.some(s => s.id === id);
+  try {
+    await sync.remove(id); srvDeleting = '';
+    srvSay('已从服务器删除。' + (here ? '这台手机里那一份还在，要删请到下面“存在这台手机上的整晚录音”里删。' : ''));
+  } catch (er) {
+    srvDeleting = '';
+    srvSay('没删成：' + (er && er.halt === 'auth' ? '口令不对' : er && er.halt === 'wait' ? '连不上服务器，请稍后再试' : (er && (er.err || er.message)) || er), true);
+  }
+  renderSrv();
+});
+$('srvKeySave').addEventListener('click', () => {
+  const k = normKey($('srvKey').value);
+  if (k.length < 16) { srvSay('口令不完整，请对照着再填一次。', true); return; }
+  saveKey(k); keyEdit = false; $('srvKey').value = ''; srvSay('');
+  sync.stop(); sync.start();
+});
+$('srvKey').addEventListener('keydown', e => { if (e.key === 'Enter') $('srvKeySave').click(); });
+$('srvForget').addEventListener('click', () => { keyEdit = !keyEdit; renderSrv(); if (keyEdit) $('srvKey').focus(); });
+$('srvRefresh').addEventListener('click', () => { srvSay(''); sync.kick(); });
+$('nvUp').addEventListener('click', async () => {
+  if (!view || !API || !upKey) return; const id = view.sess.id, b = $('nvUp'); b.disabled = true;
+  try {
+    const s = await dbReq('sessions', st => st.get(id));
+    if (s && !s.srv) { s.srv = 1; await tx(['sessions'], 'readwrite', t => { t.objectStore('sessions').put(s); }); }
+    await refreshSessions(); await showSession(id);
+    if (srvLive() && srvGone(id)) await sync.revive(id); else sync.kick();
+    say('已开始把这次录音传到服务器，进度看上面“服务器上的录音”。');
+  } catch (e) { say('没传成：' + (e && e.halt === 'wait' ? '连不上服务器' : (e && (e.err || e.message)) || e), true); }
+  b.disabled = false;
+});
+window.addEventListener('hashchange', () => { if (keyFromLink()) { keyEdit = false; srvSay(''); sync.stop(); sync.start(); } });   // 页面已经开着时又点了一次口令链接
+window.addEventListener('online', () => { sync.kick(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sync.kick(); });
 
 function loudest(sess, mins, k) {
   const full = Math.round(sess.fsd * sess.chunkSec), ok = mins.filter(x => x.lf > -190 && x.n >= full * 0.5);
@@ -970,7 +1292,7 @@ async function showSession(id) {
   const sess = sessions.find(s => s.id === id); if (!sess) { view = null; ui(); return; }
   let mins = [];
   try { mins = await dbReq('mins', s => s.getAll(sidRange(id))); } catch (e) {}
-  view = { sess, mins }; clearExport(); delArmed = 0; $('nvDel').textContent = '删除这次录音';
+  view = { sess, mins }; clearExport(); delArmed = 0; $('nvDel').textContent = '从这台手机删除'; renderNvUp();
   const sec = sess.samples / sess.fsd, s = sess.set || {};
   $('nvTitle').textContent = `${md(sess.t0)} ${hm(sess.t0)} → ${hm(sess.t1)} · ${durTxt(sec)}`;
   $('nvInfo').textContent = `${sess.dev} · ${MODE_NAME[sess.mode] || ''} · 输入：${sess.label} · ${sess.fs} → ${Math.round(sess.fsd)} Hz · 实际生效：回声消除 ${onoff(s.echoCancellation)} / 降噪 ${onoff(s.noiseSuppression)} / 自动增益 ${onoff(s.autoGainControl)} · ${mb(sess.bytes)}`
@@ -1010,9 +1332,9 @@ $('nvExport').addEventListener('click', async e => {
   const sess = view.sess, a = +b.dataset.a, z = +b.dataset.b, label = b.textContent, all = $('nvExport').querySelectorAll('button');
   all.forEach(x => { x.disabled = true; }); b.textContent = '正在生成…'; clearExport();
   try {
-    const blob = await exportBlob(sess, a, z), d = new Date(sess.t0);
+    const blob = await exportBlob(sess, a, z);
     nvBlob = blob; nvUrl = URL.createObjectURL(blob);
-    nvName = `lf_night_${DEV_TAG[sess.dev] || 'other'}_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}` + (a === 0 && z === sess.n ? '' : `_part${Math.floor(a / Math.max(1, Math.round(7200 / sess.chunkSec))) + 1}`) + '.wav';
+    nvName = nightName(sess).replace(/\.wav$/, (a === 0 && z === sess.n ? '' : `_part${Math.floor(a / Math.max(1, Math.round(7200 / sess.chunkSec))) + 1}`) + '.wav');
     const sv = $('nvSave'); sv.href = nvUrl; sv.download = nvName; sv.textContent = `保存 ${nvName}（${mb(blob.size)}）`; sv.hidden = false;
     let can = false; try { can = !!(navigator.canShare && navigator.canShare({ files: [new File([blob], nvName, { type: 'audio/wav' })] })); } catch (er) {}
     $('nvShare').hidden = !can;
@@ -1031,13 +1353,17 @@ $('nvCopy').addEventListener('click', async () => {
 });
 $('nvDel').addEventListener('click', async () => {
   if (!view) return; const b = $('nvDel'), now = performance.now();
-  if (now > delArmed) { delArmed = now + 4000; b.textContent = '再点一次，确认删除'; setTimeout(() => { if (performance.now() >= delArmed) b.textContent = '删除这次录音'; }, 4100); return; }
+  if (now > delArmed) {
+    const s = view.sess, r = srvOf(s.id), risky = API && s.srv && !(srvLive() && (srvGone(s.id) || (r && r.next >= s.n)));    // 服务器上还没有完整的一份
+    delArmed = now + 4000; b.textContent = risky ? '还没传完到服务器！再点一次，确认删除' : '再点一次，确认删除';
+    setTimeout(() => { if (performance.now() >= delArmed) b.textContent = '从这台手机删除'; }, 4100); return;
+  }
   const id = view.sess.id; delArmed = 0; clearExport();
   try {
     await tx(['chunks', 'mins', 'sessions'], 'readwrite', t => { t.objectStore('chunks').delete(sidRange(id)); t.objectStore('mins').delete(sidRange(id)); t.objectStore('sessions').delete(id); });
-    view = null; await refreshSessions(); say('已删除。');
+    view = null; await refreshSessions(); say('已从这台手机删除。' + (API ? '服务器上的那一份不受影响，要删请在上面“服务器上的录音”里删。' : ''));
   } catch (e) { say('删除失败：' + ((e && e.message) || e), true); }
-  b.textContent = '删除这次录音'; ui();
+  b.textContent = '从这台手机删除'; ui();
 });
 
 /* ---------- 快速测试：结果 ---------- */
@@ -1217,8 +1543,13 @@ function plotSpec(cv, sess, mins) {
   timeTicks(g, sess, mins, x0, x1, y1);
 }
 
-if (DEMO) { say('演示模式：用的是合成信号，不是麦克风。'); window.__lfKillInput = teardownGraph; }   // 演示时可以模拟“麦克风突然断了”
+if (DEMO) {                                             // 演示时可以模拟“麦克风突然断了”和“断网 / 恢复”
+  say('演示模式：用的是合成信号，不是麦克风。'); window.__lfKillInput = teardownGraph;
+  window.__lfNet = on => { netOff = !on; if (on) sync.kick(); };
+}
 if (QS.has('night')) { opt.use = 'night'; document.querySelectorAll('.seg[data-k="use"] button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === 'night'))); }
+renderSrv();
+if (API && upKey) sync.start();
 refreshSessions().then(ui);
 ui();
 })();
